@@ -1,0 +1,105 @@
+# Local stack for testing changes before they reach production. No AWS account needed.
+# Postgres 17 (same major as Aurora) + S3Mock (local S3) + optionally the server.
+#
+#   docker compose up -d                        Postgres + S3Mock only. Run `npm run dev` on your machine against them.
+#   docker compose --profile dev up             ...plus the server with hot reload, inside Docker.
+#   docker compose --profile prod up --build    ...plus the exact production image (Dockerfile), started the way App Runner starts it.
+#   docker compose --profile prod down -v       stop everything and wipe local data.
+#
+# Full guide: docs/LOCAL_TESTING.md
+name: orchestrawriter
+
+x-app-env: &app-env
+  PORT: "3000"
+  AWS_REGION: us-east-1
+  # S3Mock ignores credentials, but the AWS SDK insists on having some.
+  AWS_ACCESS_KEY_ID: local
+  AWS_SECRET_ACCESS_KEY: local
+  DB_HOST: db
+  DB_PORT: "5432"
+  DB_NAME: orchestra
+  DB_USER: postgres
+  DB_PASSWORD: orchestra
+  DB_SSL: "false"
+  S3_AUDIO_BUCKET: orchestra-audio
+  S3_ENDPOINT: http://s3:9090
+  S3_PUBLIC_ENDPOINT: http://localhost:9090
+  BETTER_AUTH_SECRET: local-only-secret-not-for-production
+  BETTER_AUTH_URL: http://localhost:3000
+  # Optional: Google sign-in locally. Read from the repo's .env if present.
+  # The Google client already lists http://localhost:3000/api/auth/callback/google.
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: orchestra
+      POSTGRES_DB: orchestra
+    ports:
+      - "5433:5432"          # 5433 on your machine, so a locally installed Postgres on 5432 is not in the way
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d orchestra"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Local S3 stand-in: Adobe S3Mock. Accepts presigned URLs, answers browser CORS
+  # preflights out of the box, creates the bucket at start. Credentials are ignored.
+  s3:
+    image: adobe/s3mock:latest
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: orchestra-audio
+      COM_ADOBE_TESTING_S3MOCK_STORE_RETAIN_FILES_ON_EXIT: "true"
+    # Objects live inside the container (S3Mock runs as a non-root user and cannot
+    # write to a mounted volume). They survive restarts, and `down` wipes them.
+    ports:
+      - "9090:9090"          # S3 API, what presigned URLs point at
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:9090/ || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # The production image, byte for byte what App Runner runs: migrate -> seed -> serve.
+  app:
+    profiles: ["prod"]
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      <<: *app-env
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+
+  # Hot reload inside Docker: source mounted, tsx watch restarts on save.
+  dev:
+    profiles: ["dev"]
+    image: node:24-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run db:migrate && npm run db:seed && npm run dev"
+    ports:
+      - "3000:3000"
+    environment:
+      <<: *app-env
+      NODE_ENV: development
+    volumes:
+      - .:/app
+      - devmodules:/app/node_modules   # keep Linux node_modules separate from your macOS ones
+    depends_on:
+      db:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  devmodules:

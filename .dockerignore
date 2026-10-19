@@ -11,3 +11,5 @@ infra
 scripts
 README.md
 LICENSE
+docker-compose.yml
+docs

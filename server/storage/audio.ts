@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { env } from "../config/env.js";
-import { s3 } from "./s3Client.js";
+import { s3, s3Presign } from "./s3Client.js";
 
 const URL_TTL_SECONDS = 15 * 60;
 
@@ -42,7 +42,7 @@ export function keyBelongsTo(key: string, userId: number): boolean {
 /** URL the browser can PUT the file to. It must send the same Content-Type. */
 export function presignUpload(key: string, contentType: string): Promise<string> {
   return getSignedUrl(
-    s3,
+    s3Presign,
     new PutObjectCommand({ Bucket: bucket(), Key: key, ContentType: contentType }),
     { expiresIn: URL_TTL_SECONDS },
   );
@@ -50,7 +50,7 @@ export function presignUpload(key: string, contentType: string): Promise<string>
 
 /** URL the browser can GET (or stream in an <audio> element). */
 export function presignDownload(key: string): Promise<string> {
-  return getSignedUrl(s3, new GetObjectCommand({ Bucket: bucket(), Key: key }), {
+  return getSignedUrl(s3Presign, new GetObjectCommand({ Bucket: bucket(), Key: key }), {
     expiresIn: URL_TTL_SECONDS,
   });
 }

@@ -20,9 +20,10 @@ server/
   services/         business logic
   types/            row types mirroring the SQL tables
 public/             the frontend: plain HTML/CSS/JS, no build step
-scripts/            db-init.sh, s3-init.sh, deploy-init.sh
+scripts/            db-init.sh, s3-init.sh, deploy-init.sh, smoke-test.sh
 infra/              AWS resource notes and IAM policies
-docs/               API.md (HTTP contract) and architecture.drawio (system + schema diagram)
+docs/               API.md, LOCAL_TESTING.md, architecture.drawio
+docker-compose.yml  local Postgres + S3Mock (+ the server), see docs/LOCAL_TESTING.md
 .github/workflows/  CI (typecheck) and deploy (build image, push, App Runner rollout)
 Dockerfile          what runs in production
 ```
@@ -37,7 +38,9 @@ Dockerfile          what runs in production
 
 ## Run locally
 
-Prerequisites: Node 24+, AWS credentials on your machine with `rds-db:connect` on the cluster and read/write on the bucket (ask the owner; see `infra/README.md`).
+**Recommended: Docker, no AWS account needed.** `docker compose --profile prod up --build` runs the production image against a local Postgres and a local S3 (S3Mock). Then `scripts/smoke-test.sh` proves the whole flow. Full guide with hot-reload and reset instructions: `docs/LOCAL_TESTING.md`.
+
+**Against the shared Aurora cluster instead.** Prerequisites: Node 24+, AWS credentials on your machine with `rds-db:connect` on the cluster and read/write on the bucket (ask the owner; see `infra/README.md`). Use `DB_NAME=dev_<yourname>` so your local migrations never touch the production database.
 
 ```bash
 cp .env.example .env     # fill in DB_HOST and S3_AUDIO_BUCKET from the owner

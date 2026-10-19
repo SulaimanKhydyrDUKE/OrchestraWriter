@@ -48,6 +48,11 @@ export const env = {
   s3: {
     // Optional until the bucket exists; file routes return 503 without it.
     audioBucket: process.env.S3_AUDIO_BUCKET || undefined,
+    // Local S3 stand-in (S3Mock via docker compose). S3_ENDPOINT is what the server
+    // calls; S3_PUBLIC_ENDPOINT is the same service as the browser reaches it, used
+    // only when signing URLs the browser will open. Both empty = real AWS S3.
+    endpoint: process.env.S3_ENDPOINT || undefined,
+    publicEndpoint: process.env.S3_PUBLIC_ENDPOINT || process.env.S3_ENDPOINT || undefined,
   },
 
   // Extra browser origins allowed to call /api/* with cookies, e.g. a frontend dev
