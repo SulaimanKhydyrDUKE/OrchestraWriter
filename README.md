@@ -22,7 +22,7 @@ server/
 public/             the frontend: plain HTML/CSS/JS, no build step
 scripts/            db-init.sh, s3-init.sh, deploy-init.sh
 infra/              AWS resource notes and IAM policies
-docs/               API.md, the HTTP contract for frontend work
+docs/               API.md (HTTP contract) and architecture.drawio (system + schema diagram)
 .github/workflows/  CI (typecheck) and deploy (build image, push, App Runner rollout)
 Dockerfile          what runs in production
 ```
@@ -78,6 +78,10 @@ After that, every push to `main` deploys. Watch it under the repo's Actions tab;
 ### Database network
 
 App Runner instances do not have fixed outbound IP addresses, so the Aurora security group cannot allowlist them. The MVP keeps the cluster publicly reachable on port 5432 and relies on two locks that are always on: TLS is required, and login needs a signed IAM token from a principal with `rds-db:connect`. The alternative is an App Runner VPC connector plus a NAT gateway, which costs more and is not set up yet.
+
+## Architecture diagram
+
+`docs/architecture.drawio` has two pages: the system view (browser, App Runner, Aurora, S3, GitHub, Google, and how deploys flow) and the full database schema with every column and foreign key. Open it at [app.diagrams.net](https://app.diagrams.net) (File, Open from, Device) or in VS Code with the "Draw.io Integration" extension. It is plain XML, so edit it in the same PR as the schema change it describes.
 
 ## Building the frontend
 

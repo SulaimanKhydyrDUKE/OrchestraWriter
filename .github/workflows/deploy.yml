@@ -3,6 +3,11 @@ name: CI and deploy
 on:
   push:
     branches: [main]
+    # Docs-only pushes do not need a new image. PRs still run the typecheck.
+    paths-ignore:
+      - "docs/**"
+      - "infra/**"
+      - "**.md"
   pull_request:
   workflow_dispatch:
 
