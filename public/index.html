@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OrchestraWriter</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>OrchestraWriter</h1>
+    <p class="tagline">Turn a recording into an orchestral score.</p>
+  </header>
+
+  <main>
+    <!-- Signed-out view -->
+    <section id="auth" hidden>
+      <div class="tabs" role="tablist">
+        <button type="button" data-tab="signin" class="active">Sign in</button>
+        <button type="button" data-tab="signup">Create account</button>
+      </div>
+
+      <form id="signin-form" class="card">
+        <label>Email <input name="email" type="email" autocomplete="email" required /></label>
+        <label>Password <input name="password" type="password" autocomplete="current-password" required /></label>
+        <button type="submit">Sign in</button>
+      </form>
+
+      <form id="signup-form" class="card" hidden>
+        <label>Name <input name="name" type="text" autocomplete="name" required /></label>
+        <label>Email <input name="email" type="email" autocomplete="email" required /></label>
+        <label>Password <input name="password" type="password" autocomplete="new-password" minlength="8" required /></label>
+        <button type="submit">Create account</button>
+      </form>
+
+      <div id="google" hidden>
+        <div class="divider">or</div>
+        <button type="button" id="google-btn" class="secondary">Continue with Google</button>
+      </div>
+
+      <p id="auth-error" class="error" role="alert"></p>
+    </section>
+
+    <!-- Signed-in view -->
+    <section id="app" hidden>
+      <div class="row">
+        <p>Signed in as <strong id="who"></strong></p>
+        <button type="button" id="signout" class="secondary">Sign out</button>
+      </div>
+
+      <form id="upload-form" class="card">
+        <h2>Upload a recording</h2>
+        <label>Audio file <input name="file" type="file" accept="audio/*" required /></label>
+        <label>Name <input name="name" type="text" maxlength="100" placeholder="defaults to the filename" /></label>
+        <button type="submit">Upload</button>
+        <p id="upload-status" class="muted"></p>
+      </form>
+
+      <h2>Your recordings</h2>
+      <p id="files-empty" class="muted" hidden>Nothing uploaded yet.</p>
+      <ul id="files" class="files"></ul>
+      <p id="app-error" class="error" role="alert"></p>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

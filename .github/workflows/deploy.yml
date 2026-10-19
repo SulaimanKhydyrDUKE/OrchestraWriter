@@ -1,0 +1,85 @@
+name: CI and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Lets the job request a GitHub OIDC token, which AWS exchanges for
+  # short-lived credentials for the deploy role. No AWS keys are stored.
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  APP_NAME: orchestra-writer
+
+jobs:
+  check:
+    name: Typecheck and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+  deploy:
+    name: Build image and deploy
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.rollout.outputs.url }}
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assume the deploy role via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/${{ env.APP_NAME }}
+        run: |
+          docker build -t "$IMAGE:${GITHUB_SHA}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${GITHUB_SHA}"
+          docker push "$IMAGE:latest"
+
+      - name: Wait for App Runner rollout
+        id: rollout
+        run: |
+          # App Runner watches the :latest tag and starts a deployment on its own.
+          # Poll until the service leaves OPERATION_IN_PROGRESS and is RUNNING again.
+          ARN=$(aws apprunner list-services \
+            --query "ServiceSummaryList[?ServiceName=='${APP_NAME}'].ServiceArn" --output text)
+          if [ -z "$ARN" ]; then
+            echo "::notice::Image pushed. No App Runner service named ${APP_NAME} yet; scripts/deploy-init.sh creates it from this image."
+            exit 0
+          fi
+          sleep 30
+          for i in $(seq 1 60); do
+            STATUS=$(aws apprunner describe-service --service-arn "$ARN" --query Service.Status --output text)
+            echo "[$i] $STATUS"
+            if [ "$STATUS" = "RUNNING" ] && [ "$i" -gt 1 ]; then break; fi
+            if [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ]; then exit 1; fi
+            sleep 15
+          done
+          URL=$(aws apprunner describe-service --service-arn "$ARN" --query Service.ServiceUrl --output text)
+          echo "url=https://$URL" >> "$GITHUB_OUTPUT"
+          echo "Deployed: https://$URL"

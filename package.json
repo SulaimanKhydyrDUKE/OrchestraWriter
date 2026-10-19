@@ -1,0 +1,33 @@
+{
+  "name": "orchestrawriter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch server/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/db/migrate.js && node dist/db/seed.js && node dist/index.js",
+    "db:migrate": "tsx server/db/migrate.ts",
+    "db:seed": "tsx server/db/seed.ts",
+    "db:ping": "tsx server/db/ping.ts",
+    "auth:schema": "better-auth generate --config server/auth.ts --output /dev/stdout"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/rds-signer": "^3.1152.0",
+    "@aws-sdk/s3-request-presigner": "^3.1152.0",
+    "@hono/node-server": "^2.1.5",
+    "better-auth": "^1.7.11",
+    "dotenv": "^18.0.8",
+    "hono": "^4.13.13",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@better-auth/cli": "^1.4.22",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
