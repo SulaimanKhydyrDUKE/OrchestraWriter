@@ -256,7 +256,8 @@ service_arn() {
 }
 wait_for_service() { # arn
   for i in $(seq 1 80); do
-    STATUS=$(aws apprunner describe-service --service-arn "$1" --query Service.Status --output text)
+    # A dropped Wi-Fi packet must not abort the whole script: treat it as "unknown, keep waiting".
+    STATUS=$(aws apprunner describe-service --service-arn "$1" --query Service.Status --output text 2>/dev/null || echo UNKNOWN)
     case "$STATUS" in
       RUNNING) echo " $STATUS"; return 0 ;;
       CREATE_FAILED|DELETE_FAILED) echo " $STATUS"; echo "See the App Runner console event log."; return 1 ;;
