@@ -21,6 +21,29 @@ async function api(method, url, body) {
 function show(el, on) { el.hidden = !on; }
 function setError(sel, msg) { $(sel).textContent = msg || ""; }
 
+// ---------- backend check ----------
+
+function setCheck(name, ok, detail) {
+  const li = document.querySelector(`#status-list li[data-check="${name}"]`);
+  li.classList.toggle("ok", ok === true);
+  li.classList.toggle("fail", ok === false);
+  li.querySelector(".detail").textContent = detail;
+}
+
+async function loadStatus() {
+  try {
+    const s = await api("GET", "/api/status");
+    setCheck("server", true, `${s.server.env} · ${s.server.baseUrl} · ${new Date(s.server.time).toLocaleTimeString()}`);
+    setCheck("database", s.database.ok, `${s.database.detail} · ${s.database.latencyMs} ms`);
+    setCheck("storage", s.storage.ok, `${s.storage.detail} · ${s.storage.latencyMs} ms`);
+    const who = s.auth.signedIn ? `signed in as ${s.auth.user.email} (user #${s.auth.user.id})` : "signed out";
+    setCheck("auth", true, `${who} · email+password on · Google ${s.auth.googleEnabled ? "on" : "off"}`);
+  } catch (err) {
+    for (const n of ["server", "database", "storage", "auth"]) setCheck(n, false, err.message);
+  }
+}
+$("#status-refresh").addEventListener("click", loadStatus);
+
 // ---------- auth ----------
 
 async function refreshSession() {
@@ -32,6 +55,7 @@ async function refreshSession() {
     $("#who").textContent = user.name ? `${user.name} (${user.email})` : user.email;
     await loadFiles();
   }
+  loadStatus();
   return user;
 }
 
@@ -107,7 +131,10 @@ function renderFile(f) {
   title.textContent = f.name;
   const meta = document.createElement("div");
   meta.className = "meta";
-  meta.textContent = `${fmtDuration(f.audioLengthSeconds)} · ${new Date(f.createdAt).toLocaleString()}`;
+  meta.append(`${fmtDuration(f.audioLengthSeconds)} · ${new Date(f.createdAt).toLocaleString()} · row #${f.id} · `);
+  const code = document.createElement("code");
+  code.textContent = f.key;
+  meta.appendChild(code);
   const actions = document.createElement("div");
   actions.className = "actions";
 
@@ -148,6 +175,12 @@ function audioDurationSeconds(file) {
   });
 }
 
+function stepState(name, state) {
+  const li = document.querySelector(`#upload-steps li[data-step="${name}"]`);
+  li.classList.remove("done", "fail");
+  if (state) li.classList.add(state);
+}
+
 $("#upload-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const form = e.target;
@@ -156,27 +189,44 @@ $("#upload-form").addEventListener("submit", async (e) => {
   const name = (form.elements.name.value || file.name).trim().slice(0, 100);
   const button = form.querySelector("button");
   const status = $("#upload-status");
+  const steps = $("#upload-steps");
   setError("#app-error", "");
   button.disabled = true;
+  show(steps, true);
+  for (const li of steps.children) li.classList.remove("done", "fail");
+  let current = "duration";
   try {
-    status.textContent = "Reading duration…";
+    status.textContent = "Working…";
     const seconds = Math.max(1, Math.round(await audioDurationSeconds(file)));
     const contentType = file.type || "application/octet-stream";
+    stepState("duration", "done");
 
-    status.textContent = "Requesting upload URL…";
+    current = "presign";
     const { uploadUrl, key } = await api("POST", "/api/files/upload-url", { filename: file.name, contentType });
+    stepState("presign", "done");
 
-    status.textContent = "Uploading to S3…";
+    current = "put";
     const put = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": contentType }, body: file });
-    if (!put.ok) throw new Error(`S3 upload failed: ${put.status}`);
+    if (!put.ok) throw new Error(`S3 upload failed: HTTP ${put.status}`);
+    stepState("put", "done");
 
-    status.textContent = "Saving…";
-    await api("POST", "/api/files", { name, key, audioLengthSeconds: seconds });
+    current = "register";
+    const { file: saved } = await api("POST", "/api/files", { name, key, audioLengthSeconds: seconds });
+    stepState("register", "done");
+
+    // Proof the round trip is real: ask the server for a download URL for the new
+    // row and HEAD the object through it. Row in Postgres + object in S3, both verified.
+    current = "verify";
+    const { url } = await api("GET", `/api/files/${saved.id}/download-url`);
+    const head = await fetch(url, { method: "HEAD" });
+    if (!head.ok) throw new Error(`S3 returned HTTP ${head.status} for the stored object`);
+    stepState("verify", "done");
 
     form.reset();
-    status.textContent = "Uploaded.";
+    status.textContent = `Uploaded and verified: row #${saved.id}, ${head.headers.get("content-length") || file.size} bytes in S3.`;
     await loadFiles();
   } catch (err) {
+    stepState(current, "fail");
     status.textContent = "";
     setError("#app-error", err.message);
   } finally {
@@ -187,6 +237,7 @@ $("#upload-form").addEventListener("submit", async (e) => {
 // ---------- boot ----------
 
 (async () => {
+  loadStatus();
   try {
     const cfg = await api("GET", "/api/config");
     show($("#google"), !!cfg.googleEnabled);

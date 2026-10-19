@@ -46,7 +46,11 @@ export const pool = new Pool({
   ssl,
   max: 10,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 10_000,
+  // Aurora Serverless v2 is configured with min 0 ACU and pauses after 5 idle
+  // minutes. Resuming takes ~15s, and the connection that triggers it must wait
+  // that long or the first request after idle fails. Set min ACU to 0.5 to
+  // remove the pause (and this delay) at the cost of an always-on instance.
+  connectionTimeoutMillis: 30_000,
 });
 
 pool.on("error", (err) => {

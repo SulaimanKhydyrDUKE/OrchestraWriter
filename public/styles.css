@@ -56,3 +56,21 @@ button:disabled { opacity: 0.6; cursor: wait; }
 .files .actions { display: flex; gap: 8px; }
 .files audio { width: 100%; }
 .error { color: var(--error); min-height: 1.5em; margin: 8px 0; }
+
+/* backend check */
+.status h2 { margin: 0; }
+.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.checks li { display: grid; grid-template-columns: 12px 150px 1fr; gap: 10px; align-items: baseline; font-size: 14px; }
+.checks .label { font-weight: 600; }
+.checks .detail { color: var(--muted); word-break: break-word; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line); display: inline-block; }
+li.ok .dot { background: #2e9d5b; }
+li.fail .dot { background: var(--error); }
+li.fail .detail { color: var(--error); }
+/* upload steps */
+.steps { margin: 0; padding-left: 20px; font-size: 14px; color: var(--muted); display: grid; gap: 2px; }
+.steps li.done { color: var(--fg); }
+.steps li.done::marker { content: "✓ "; color: #2e9d5b; }
+.steps li.fail { color: var(--error); }
+.steps li.fail::marker { content: "✗ "; }
+.files .meta code { font-size: 12px; }

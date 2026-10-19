@@ -13,6 +13,20 @@
   </header>
 
   <main>
+    <!-- Backend check: visible to everyone, proves DB, S3 and auth are wired. -->
+    <section id="status" class="card status">
+      <div class="row">
+        <h2>Backend check</h2>
+        <button type="button" id="status-refresh" class="secondary">Refresh</button>
+      </div>
+      <ul id="status-list" class="checks">
+        <li data-check="server"><span class="dot"></span><span class="label">Server</span><span class="detail">checking…</span></li>
+        <li data-check="database"><span class="dot"></span><span class="label">Database (Aurora)</span><span class="detail">checking…</span></li>
+        <li data-check="storage"><span class="dot"></span><span class="label">Storage (S3)</span><span class="detail">checking…</span></li>
+        <li data-check="auth"><span class="dot"></span><span class="label">Auth</span><span class="detail">checking…</span></li>
+      </ul>
+    </section>
+
     <!-- Signed-out view -->
     <section id="auth" hidden>
       <div class="tabs" role="tablist">
@@ -54,6 +68,13 @@
         <label>Name <input name="name" type="text" maxlength="100" placeholder="defaults to the filename" /></label>
         <button type="submit">Upload</button>
         <p id="upload-status" class="muted"></p>
+        <ol id="upload-steps" class="steps" hidden>
+          <li data-step="duration">Read duration in the browser</li>
+          <li data-step="presign">Server signed an S3 upload URL</li>
+          <li data-step="put">Browser PUT bytes to S3</li>
+          <li data-step="register">Server stored the row in Postgres</li>
+          <li data-step="verify">Server signed a download URL and S3 served the object</li>
+        </ol>
       </form>
 
       <h2>Your recordings</h2>

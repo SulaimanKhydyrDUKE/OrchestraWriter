@@ -37,6 +37,8 @@ This grants a login to the database, not table permissions; those come from the 
 
 ## Known gaps
 
+- The cluster is Serverless v2 with min 0 ACU and a 300s auto-pause. The first request after 5 idle minutes waits ~15s while it resumes (the pool allows 30s). Raise min capacity to 0.5 ACU to remove the pause if that delay bothers users; it costs roughly an always-on small instance.
+
 - Aurora is reachable from the internet on 5432 (TLS and IAM token still required). A VPC connector + NAT gateway would close it.
 - Backup retention was 1 day and deletion protection off at setup time. Raise to 7+ days and enable protection.
 - No custom domain; the App Runner URL is the site URL. Changing it means re-registering the Google redirect URI and re-running `deploy-init.sh`.

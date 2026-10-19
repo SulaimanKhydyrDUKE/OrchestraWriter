@@ -22,6 +22,7 @@ server/
 public/             the frontend: plain HTML/CSS/JS, no build step
 scripts/            db-init.sh, s3-init.sh, deploy-init.sh
 infra/              AWS resource notes and IAM policies
+docs/               API.md, the HTTP contract for frontend work
 .github/workflows/  CI (typecheck) and deploy (build image, push, App Runner rollout)
 Dockerfile          what runs in production
 ```
@@ -77,6 +78,16 @@ After that, every push to `main` deploys. Watch it under the repo's Actions tab;
 ### Database network
 
 App Runner instances do not have fixed outbound IP addresses, so the Aurora security group cannot allowlist them. The MVP keeps the cluster publicly reachable on port 5432 and relies on two locks that are always on: TLS is required, and login needs a signed IAM token from a principal with `rds-db:connect`. The alternative is an App Runner VPC connector plus a NAT gateway, which costs more and is not set up yet.
+
+## Building the frontend
+
+The backend is done enough to build against. Start here:
+
+- `docs/API.md` lists every endpoint with request and response shapes.
+- `public/` is a working reference client in plain JavaScript, including the Backend check panel and the full upload flow with verification.
+- For a separate frontend app, run the server with `CORS_ORIGINS=http://localhost:5173` (or your dev server's origin) and use `credentials: "include"` on fetch. Sessions are cookies; there is no token to manage.
+
+Each folder has its own README: `server/`, `server/db/`, `server/routes/`, `server/services/`, `server/storage/`, `public/`, `scripts/`, `infra/`.
 
 ## Collaborators
 

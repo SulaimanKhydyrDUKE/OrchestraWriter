@@ -12,7 +12,7 @@ export const auth = betterAuth({
   appName: "OrchestraWriter",
   baseURL: env.auth.url,
   secret: env.auth.secret,
-  trustedOrigins: [env.auth.url],
+  trustedOrigins: [env.auth.url, ...env.corsOrigins],
 
   // Our existing pg pool (IAM tokens on Aurora, password locally). Better Auth
   // wraps it in Kysely and issues plain SQL against the tables below.

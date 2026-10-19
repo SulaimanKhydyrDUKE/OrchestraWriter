@@ -50,6 +50,13 @@ export const env = {
     audioBucket: process.env.S3_AUDIO_BUCKET || undefined,
   },
 
+  // Extra browser origins allowed to call /api/* with cookies, e.g. a frontend dev
+  // server on http://localhost:5173. Comma-separated. Empty = same-origin only.
+  corsOrigins: (process.env.CORS_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean),
+
   auth: {
     // Signs session cookies. Required in production; a fixed dev value otherwise.
     secret: isProduction
