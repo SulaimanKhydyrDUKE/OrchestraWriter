@@ -57,13 +57,32 @@ pool.on("error", (err) => {
   console.error("Unexpected error on idle Postgres client", err);
 });
 
-/** Run a parameterised query and return the rows. Use $1, $2... for params. */
+// Errors that mean "the connection died", as opposed to "your SQL is wrong".
+// Seen while Aurora resumes from auto-pause: the TCP connect succeeds, then the
+// server drops it, or the handshake exceeds the timeout.
+const CONNECTION_ERROR = /terminated|timeout|ECONNRESET|ECONNREFUSED|EPIPE|socket hang up/i;
+
+/**
+ * Run a parameterised query and return the rows. Use $1, $2... for params.
+ * Retries once if the connection itself failed, which covers the first query
+ * after the cluster has auto-paused. Queries with side effects are safe to
+ * retry here because a connection failure means the statement never ran.
+ */
 export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
   params?: unknown[],
 ): Promise<T[]> {
-  const result = await pool.query<T>(text, params);
-  return result.rows;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const result = await pool.query<T>(text, params);
+      return result.rows;
+    } catch (err) {
+      const connectionFailed = err instanceof Error && CONNECTION_ERROR.test(err.message);
+      if (!connectionFailed || attempt >= 3) throw err;
+      console.warn(`database connection failed (${(err as Error).message}); retrying (${attempt}/2)`);
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+    }
+  }
 }
 
 /** Drain the pool. Call on shutdown and at the end of one-off scripts. */
