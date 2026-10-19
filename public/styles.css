@@ -74,3 +74,9 @@ li.fail .detail { color: var(--error); }
 .steps li.fail { color: var(--error); }
 .steps li.fail::marker { content: "✗ "; }
 .files .meta code { font-size: 12px; }
+/* text pages */
+.prose { padding-bottom: 48px; }
+.prose p, .prose li { max-width: 60ch; }
+.prose a { color: var(--accent); }
+footer { max-width: 640px; margin: 32px auto; padding: 0 16px; font-size: 14px; }
+footer a { color: var(--muted); }
