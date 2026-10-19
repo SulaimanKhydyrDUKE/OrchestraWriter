@@ -81,8 +81,13 @@ fi
 
 log "Deploy role (assumed by GitHub Actions)"
 DEPLOY_ROLE="$APP_NAME-github-deploy"
-# Any workflow run in this repository may assume the role. The role itself can only
+# GitHub's OIDC subject now carries numeric ids: repo:<owner>@<ownerId>/<repo>@<repoId>:...
+# so a renamed or re-created repo cannot inherit the trust. Allow that form, and the
+# older id-less form, for any workflow in this repository. The role itself can only
 # push images and read App Runner status, so branch-level scoping buys little here.
+GH_OWNER_ID=$(gh api "repos/$GITHUB_REPO" --jq '.owner.id')
+GH_REPO_ID=$(gh api "repos/$GITHUB_REPO" --jq '.id')
+GITHUB_REPO_WITH_IDS="${GITHUB_REPO%%/*}@$GH_OWNER_ID/${GITHUB_REPO##*/}@$GH_REPO_ID"
 cat > "$TMP/deploy-trust.json" <<JSON
 {
   "Version": "2012-10-17",
@@ -92,7 +97,10 @@ cat > "$TMP/deploy-trust.json" <<JSON
     "Action": "sts:AssumeRoleWithWebIdentity",
     "Condition": {
       "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
-      "StringLike": { "token.actions.githubusercontent.com:sub": "repo:$GITHUB_REPO:*" }
+      "StringLike": { "token.actions.githubusercontent.com:sub": [
+        "repo:$GITHUB_REPO_WITH_IDS:*",
+        "repo:$GITHUB_REPO:*"
+      ] }
     }
   }]
 }
