@@ -81,8 +81,8 @@ fi
 
 log "Deploy role (assumed by GitHub Actions)"
 DEPLOY_ROLE="$APP_NAME-github-deploy"
-# The sub claim is repo:<owner/repo>:environment:production when a job uses that
-# environment, and repo:<owner/repo>:ref:refs/heads/main otherwise. Allow both.
+# Any workflow run in this repository may assume the role. The role itself can only
+# push images and read App Runner status, so branch-level scoping buys little here.
 cat > "$TMP/deploy-trust.json" <<JSON
 {
   "Version": "2012-10-17",
@@ -92,10 +92,7 @@ cat > "$TMP/deploy-trust.json" <<JSON
     "Action": "sts:AssumeRoleWithWebIdentity",
     "Condition": {
       "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
-      "StringLike": { "token.actions.githubusercontent.com:sub": [
-        "repo:$GITHUB_REPO:environment:production",
-        "repo:$GITHUB_REPO:ref:refs/heads/main"
-      ] }
+      "StringLike": { "token.actions.githubusercontent.com:sub": "repo:$GITHUB_REPO:*" }
     }
   }]
 }
