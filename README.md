@@ -84,7 +84,9 @@ App Runner instances do not have fixed outbound IP addresses, so the Aurora secu
 
 ## Architecture diagram
 
-`docs/architecture.drawio` has two pages: the system view (browser, App Runner, Aurora, S3, GitHub, Google, and how deploys flow) and the full database schema with every column and foreign key. Open it at [app.diagrams.net](https://app.diagrams.net) (File, Open from, Device) or in VS Code with the "Draw.io Integration" extension. It is plain XML, so edit it in the same PR as the schema change it describes.
+![Architecture](docs/architecture.png)
+
+`docs/architecture.drawio` has two pages: the architecture above (AWS icons, including the transcription pipeline) and the full database schema with every column and foreign key. Open it at [app.diagrams.net](https://app.diagrams.net) (File, Open from, Device) or in VS Code with the "Draw.io Integration" extension. It is plain XML, so edit it in the same PR as the schema change it describes.
 
 ## Transcription pipeline
 
