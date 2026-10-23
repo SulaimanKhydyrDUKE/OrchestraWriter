@@ -44,14 +44,16 @@ async function waitForDatabase(): Promise<void> {
 
 async function main(): Promise<void> {
   await waitForDatabase();
+  // Always schema-qualified: the default search_path starts with app since the
+  // schema split, and an unqualified name would silently create app.schema_migrations.
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
+    CREATE TABLE IF NOT EXISTS public.schema_migrations (
       filename   TEXT        PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
   `);
   const applied = new Set(
-    (await pool.query<{ filename: string }>("SELECT filename FROM schema_migrations")).rows.map(
+    (await pool.query<{ filename: string }>("SELECT filename FROM public.schema_migrations")).rows.map(
       (r) => r.filename,
     ),
   );
@@ -68,7 +70,7 @@ async function main(): Promise<void> {
     try {
       await client.query("BEGIN");
       await client.query(sql);
-      await client.query("INSERT INTO schema_migrations (filename) VALUES ($1)", [file]);
+      await client.query("INSERT INTO public.schema_migrations (filename) VALUES ($1)", [file]);
       await client.query("COMMIT");
       console.log(`applied  ${file}`);
       count++;
