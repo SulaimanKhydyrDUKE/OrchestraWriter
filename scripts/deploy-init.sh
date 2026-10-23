@@ -283,7 +283,7 @@ cat <<JSON
         "DB_NAME": "$DB_NAME",
         "DB_USER": "$DB_USER",
         "S3_AUDIO_BUCKET": "$S3_AUDIO_BUCKET",
-        "BETTER_AUTH_URL": "$1"
+        "BETTER_AUTH_URL": "$1"$PIPELINE_ENV
       },
       "RuntimeEnvironmentSecrets": { $SECRETS_JSON }
     }
@@ -293,6 +293,13 @@ cat <<JSON
 }
 JSON
 }
+# If scripts/pipeline-init.sh created the state machine, the API runs jobs on it;
+# otherwise the API runs the pipeline in-process (PIPELINE_MODE defaults to inline).
+SM_ARN=$(aws stepfunctions list-state-machines --query "stateMachines[?name=='$APP_NAME-transcription'].stateMachineArn" --output text 2>/dev/null || true)
+PIPELINE_ENV=""
+[ -n "$SM_ARN" ] && PIPELINE_ENV=",
+        \"STATE_MACHINE_ARN\": \"$SM_ARN\""
+echo "pipeline: ${SM_ARN:-inline (no state machine yet)}"
 INSTANCE_CONFIG="{\"Cpu\":\"0.25 vCPU\",\"Memory\":\"0.5 GB\",\"InstanceRoleArn\":\"$TASK_ROLE_ARN\"}"
 HEALTH_CONFIG='{"Protocol":"HTTP","Path":"/health","Interval":10,"Timeout":5,"HealthyThreshold":1,"UnhealthyThreshold":5}'
 

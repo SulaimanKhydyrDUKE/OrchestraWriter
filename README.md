@@ -86,6 +86,12 @@ App Runner instances do not have fixed outbound IP addresses, so the Aurora secu
 
 `docs/architecture.drawio` has two pages: the system view (browser, App Runner, Aurora, S3, GitHub, Google, and how deploys flow) and the full database schema with every column and foreign key. Open it at [app.diagrams.net](https://app.diagrams.net) (File, Open from, Device) or in VS Code with the "Draw.io Integration" extension. It is plain XML, so edit it in the same PR as the schema change it describes.
 
+## Transcription pipeline
+
+`POST /api/jobs` turns a recording into sheet music through AWS Step Functions: Split, then one Lambda per 30-second chunk in parallel, then Merge, Notate and Finalize. Code in `server/pipeline/`, state machine in `infra/transcription.asl.json`, AWS setup in `scripts/pipeline-init.sh`, worker image in `Dockerfile.worker`. Locally the same steps run inside the server, no AWS needed.
+
+**For the model team:** replace the one function in `server/pipeline/model.ts`. Input is an audio file in S3 plus a time window; output is a MIDI file with one track per instrument. Everything else (splitting, fan-out, merging, notation, database, UI) already works around the placeholder.
+
 ## Building the frontend
 
 The backend is done enough to build against. Start here:

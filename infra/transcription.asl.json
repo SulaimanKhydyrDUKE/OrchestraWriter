@@ -1,0 +1,74 @@
+{
+  "Comment": "OrchestraWriter transcription pipeline: split -> transcribe chunks in parallel -> merge -> notate -> finalize. Any failure marks the job failed. ${...} placeholders are filled in by scripts/pipeline-init.sh.",
+  "StartAt": "Split",
+  "States": {
+    "Split": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${SplitArn}", "Payload.$": "$" },
+      "OutputPath": "$.Payload",
+      "Retry": [{ "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 2, "MaxAttempts": 3, "BackoffRate": 2 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "MarkFailed" }],
+      "Next": "Transcribe"
+    },
+    "Transcribe": {
+      "Type": "Map",
+      "Comment": "One worker per chunk, up to 20 at a time. This is the model slot.",
+      "ItemsPath": "$.chunks",
+      "MaxConcurrency": 20,
+      "ItemProcessor": {
+        "ProcessorConfig": { "Mode": "INLINE" },
+        "StartAt": "TranscribeChunk",
+        "States": {
+          "TranscribeChunk": {
+            "Type": "Task",
+            "Resource": "arn:aws:states:::lambda:invoke",
+            "Parameters": { "FunctionName": "${TranscribeArn}", "Payload.$": "$" },
+            "OutputPath": "$.Payload",
+            "Retry": [{ "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 2, "MaxAttempts": 4, "BackoffRate": 2 }],
+            "End": true
+          }
+        }
+      },
+      "ResultPath": "$.transcribed",
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "MarkFailed" }],
+      "Next": "Merge"
+    },
+    "Merge": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${MergeArn}", "Payload.$": "$" },
+      "OutputPath": "$.Payload",
+      "Retry": [{ "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 2, "MaxAttempts": 3, "BackoffRate": 2 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "MarkFailed" }],
+      "Next": "Notate"
+    },
+    "Notate": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${NotateArn}", "Payload.$": "$" },
+      "OutputPath": "$.Payload",
+      "Retry": [{ "ErrorEquals": ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"], "IntervalSeconds": 2, "MaxAttempts": 3, "BackoffRate": 2 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "MarkFailed" }],
+      "Next": "Finalize"
+    },
+    "Finalize": {
+      "Type": "Task",
+      "Comment": "The only step that writes the database (as orchestra_worker). Retries cover Aurora waking from auto-pause.",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${FinalizeArn}", "Payload.$": "$" },
+      "OutputPath": "$.Payload",
+      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 5, "MaxAttempts": 4, "BackoffRate": 2 }],
+      "Catch": [{ "ErrorEquals": ["States.ALL"], "ResultPath": "$.error", "Next": "MarkFailed" }],
+      "End": true
+    },
+    "MarkFailed": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": { "FunctionName": "${FailArn}", "Payload": { "jobId.$": "$.jobId", "error.$": "$.error" } },
+      "Retry": [{ "ErrorEquals": ["States.ALL"], "IntervalSeconds": 5, "MaxAttempts": 4, "BackoffRate": 2 }],
+      "Next": "Failed"
+    },
+    "Failed": { "Type": "Fail", "Error": "TranscriptionFailed", "Cause": "See the job row's error column or the failed step in this execution." }
+  }
+}

@@ -88,3 +88,67 @@ jobs:
           URL=$(aws apprunner describe-service --service-arn "$ARN" --query Service.ServiceUrl --output text)
           echo "url=https://$URL" >> "$GITHUB_OUTPUT"
           echo "Deployed: https://$URL"
+
+  worker:
+    name: Build worker image and update Lambdas
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # The Lambdas are arm64 (Graviton), so build natively on an arm64 runner.
+    runs-on: ubuntu-24.04-arm
+    environment: production
+    concurrency:
+      group: deploy-worker
+      cancel-in-progress: false
+    env:
+      WORKER_REPO: orchestra-writer-worker
+      FUNCTIONS: split transcribe merge notate finalize fail
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assume the deploy role via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check the pipeline exists
+        id: exists
+        run: |
+          if aws ecr describe-repositories --repository-names "$WORKER_REPO" >/dev/null 2>&1; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No $WORKER_REPO repository (or no access) yet. Run scripts/pipeline-init.sh once; skipping."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to ECR
+        if: steps.exists.outputs.ok == 'true'
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push worker image
+        if: steps.exists.outputs.ok == 'true'
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/orchestra-writer-worker
+        run: |
+          # --provenance=false: Lambda rejects multi-manifest (attestation) images.
+          docker build --provenance=false -f Dockerfile.worker -t "$IMAGE:${GITHUB_SHA}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${GITHUB_SHA}"
+          docker push "$IMAGE:latest"
+
+      - name: Point the Lambdas at the new image
+        if: steps.exists.outputs.ok == 'true'
+        env:
+          IMAGE: ${{ steps.ecr.outputs.registry }}/orchestra-writer-worker
+        run: |
+          for f in $FUNCTIONS; do
+            name="${APP_NAME}-$f"
+            if ! aws lambda get-function --function-name "$name" >/dev/null 2>&1; then
+              echo "::notice::$name does not exist yet; scripts/pipeline-init.sh creates it."; continue
+            fi
+            aws lambda update-function-code --function-name "$name" --image-uri "$IMAGE:${GITHUB_SHA}" >/dev/null
+          done
+          for f in $FUNCTIONS; do
+            aws lambda get-function --function-name "${APP_NAME}-$f" >/dev/null 2>&1 && \
+              aws lambda wait function-updated-v2 --function-name "${APP_NAME}-$f" && echo "${APP_NAME}-$f updated"
+          done

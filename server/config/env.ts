@@ -62,6 +62,14 @@ export const env = {
     .map((o) => o.trim())
     .filter(Boolean),
 
+  // Transcription pipeline. "stepfunctions" in production (STATE_MACHINE_ARN set),
+  // "inline" locally: the same step code runs inside the API process, no AWS needed.
+  pipeline: {
+    stateMachineArn: process.env.STATE_MACHINE_ARN || undefined,
+    mode: (process.env.PIPELINE_MODE ||
+      (process.env.STATE_MACHINE_ARN ? "stepfunctions" : "inline")) as "stepfunctions" | "inline",
+  },
+
   auth: {
     // Signs session cookies. Required in production; a fixed dev value otherwise.
     secret: isProduction

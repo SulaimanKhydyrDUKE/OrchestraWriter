@@ -15,16 +15,19 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/client-sfn": "^3.1155.0",
     "@aws-sdk/rds-signer": "^3.1152.0",
     "@aws-sdk/s3-request-presigner": "^3.1152.0",
     "@hono/node-server": "^2.1.5",
     "better-auth": "^1.7.11",
     "dotenv": "^18.0.8",
     "hono": "^4.13.13",
+    "midi-file": "^1.2.4",
     "pg": "^8.23.1"
   },
   "devDependencies": {
     "@better-auth/cli": "^1.4.22",
+    "@types/aws-lambda": "^8.10.164",
     "@types/node": "^26.6.5",
     "@types/pg": "^8.23.1",
     "tsx": "^4.23.15",

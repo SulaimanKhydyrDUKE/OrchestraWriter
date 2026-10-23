@@ -20,6 +20,7 @@ statusRoutes.get("/", async (c) => {
     server: { env: env.nodeEnv, time: new Date().toISOString(), baseUrl: env.auth.url },
     database,
     storage,
+    pipeline: { mode: env.pipeline.mode, stateMachine: env.pipeline.stateMachineArn?.split(":").pop() ?? null },
     auth: {
       googleEnabled: Boolean(env.auth.google.clientId),
       signedIn: Boolean(user),

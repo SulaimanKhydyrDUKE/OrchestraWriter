@@ -1,0 +1,19 @@
+# syntax=docker/dockerfile:1
+# Pipeline worker image for AWS Lambda (arm64). One image, six functions: each
+# function overrides CMD with its handler, e.g. ["pipeline/lambda.merge"].
+# Built by .github/workflows/deploy.yml on an arm64 runner.
+
+FROM node:24-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY tsconfig.json ./
+COPY server ./server
+RUN npm run build && npm prune --omit=dev
+
+FROM public.ecr.aws/lambda/nodejs:24
+# package.json carries "type": "module" so Lambda loads dist/ as ES modules.
+COPY package.json ${LAMBDA_TASK_ROOT}/
+COPY --from=build /app/node_modules ${LAMBDA_TASK_ROOT}/node_modules
+COPY --from=build /app/dist ${LAMBDA_TASK_ROOT}/
+CMD ["pipeline/lambda.split"]

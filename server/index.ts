@@ -10,6 +10,7 @@ import { auth } from "./auth.js";
 import { env } from "./config/env.js";
 import { closePool, query } from "./db/client.js";
 import { filesRoutes } from "./routes/files.js";
+import { jobsRoutes, sheetsRoutes } from "./routes/jobs.js";
 import { statusRoutes } from "./routes/status.js";
 
 const app = new Hono();
@@ -43,6 +44,8 @@ app.route("/api/status", statusRoutes);
 app.on(["GET", "POST"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 app.route("/api/files", filesRoutes);
+app.route("/api/jobs", jobsRoutes);
+app.route("/api/sheets", sheetsRoutes);
 app.all("/api/*", (c) => c.json({ error: "Not found" }, 404));
 
 // The MVP frontend: plain files in public/, no build step.
@@ -53,6 +56,7 @@ const server = serve({ fetch: app.fetch, port: env.port, hostname: "0.0.0.0" }, 
   console.log(`  auth base URL: ${env.auth.url}`);
   console.log(`  google sign-in: ${env.auth.google.clientId ? "enabled" : "disabled"}`);
   console.log(`  s3 bucket: ${env.s3.audioBucket ?? "(not configured)"}`);
+  console.log(`  pipeline: ${env.pipeline.mode}${env.pipeline.stateMachineArn ? ` (${env.pipeline.stateMachineArn.split(":").pop()})` : ""}`);
   console.log(`  cors origins: ${env.corsOrigins.length ? env.corsOrigins.join(", ") : "(same-origin only)"}`);
 });
 

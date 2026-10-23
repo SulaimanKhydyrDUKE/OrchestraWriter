@@ -37,9 +37,12 @@ async function loadStatus() {
     setCheck("database", s.database.ok, `${s.database.detail} · ${s.database.latencyMs} ms`);
     setCheck("storage", s.storage.ok, `${s.storage.detail} · ${s.storage.latencyMs} ms`);
     const who = s.auth.signedIn ? `signed in as ${s.auth.user.email} (user #${s.auth.user.id})` : "signed out";
+    setCheck("pipeline", true, s.pipeline.mode === "stepfunctions"
+      ? `AWS Step Functions · ${s.pipeline.stateMachine}`
+      : "inline (runs inside this server, local mode)");
     setCheck("auth", true, `${who} · email+password on · Google ${s.auth.googleEnabled ? "on" : "off"}`);
   } catch (err) {
-    for (const n of ["server", "database", "storage", "auth"]) setCheck(n, false, err.message);
+    for (const n of ["server", "database", "storage", "auth", "pipeline"]) setCheck(n, false, err.message);
   }
 }
 $("#status-refresh").addEventListener("click", loadStatus);
@@ -54,6 +57,7 @@ async function refreshSession() {
   if (user) {
     $("#who").textContent = user.name ? `${user.name} (${user.email})` : user.email;
     await loadFiles();
+    await loadJobs();
   }
   loadStatus();
   return user;
@@ -158,8 +162,61 @@ function renderFile(f) {
     catch (err) { setError("#app-error", err.message); del.disabled = false; }
   });
 
-  actions.append(play, del);
+  const tr = document.createElement("button");
+  tr.type = "button"; tr.textContent = "Transcribe";
+  tr.addEventListener("click", async () => {
+    tr.disabled = true;
+    try { await api("POST", "/api/jobs", { audioFileId: f.id }); await loadJobs(); }
+    catch (err) { setError("#app-error", err.message); }
+    finally { tr.disabled = false; }
+  });
+
+  actions.append(tr, play, del);
   li.append(title, meta, actions);
+  return li;
+}
+
+// ---------- transcription jobs ----------
+
+let jobsTimer = null;
+
+async function loadJobs() {
+  clearTimeout(jobsTimer);
+  try {
+    const { jobs } = await api("GET", "/api/jobs");
+    const list = $("#jobs");
+    list.textContent = "";
+    show($("#jobs-empty"), jobs.length === 0);
+    // Fetch details (with sheets) for finished jobs, newest first.
+    for (const j of jobs) list.appendChild(await renderJob(j));
+    if (jobs.some((j) => j.status === "queued" || j.status === "running")) jobsTimer = setTimeout(loadJobs, 3000);
+  } catch (err) { setError("#app-error", err.message); }
+}
+
+async function renderJob(j) {
+  const li = document.createElement("li");
+  const title = document.createElement("strong");
+  title.textContent = `${j.audioName || "deleted recording"} · job #${j.id}`;
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  const took = j.startedAt && j.finishedAt ? ` in ${((new Date(j.finishedAt) - new Date(j.startedAt)) / 1000).toFixed(1)} s` : "";
+  meta.textContent = `${j.status}${took}${j.chunkCount ? ` · ${j.chunkCount} chunks` : ""}${j.error ? ` · ${j.error}` : ""}`;
+  li.append(title, meta);
+  if (j.status === "succeeded") {
+    const { job } = await api("GET", `/api/jobs/${j.id}`);
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    for (const sheet of job.sheets || []) {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "secondary"; b.textContent = `${sheet.name} (MusicXML)`;
+      b.addEventListener("click", async () => {
+        try { const { url } = await api("GET", `/api/sheets/${sheet.id}/download-url`); window.open(url, "_blank"); }
+        catch (err) { setError("#app-error", err.message); }
+      });
+      actions.appendChild(b);
+    }
+    li.appendChild(actions);
+  }
   return li;
 }
 

@@ -44,6 +44,8 @@ export const pool = new Pool({
   // one gets a fresh IAM token. Connections already open are unaffected by expiry.
   password: env.db.password ?? (() => signer!.getAuthToken()),
   ssl,
+  // app tables first, then auth (see sql/migrations/20261022_01_auth_app_schemas.sql).
+  options: "-c search_path=app,auth,public",
   max: 10,
   idleTimeoutMillis: 30_000,
   // Aurora Serverless v2 is configured with min 0 ACU and pauses after 5 idle

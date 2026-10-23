@@ -61,3 +61,18 @@ Browser requests must send an `Origin` header matching the site or one of `CORS_
 4. To play: `GET /api/files/:id/download-url`, then set the returned `url` as an `<audio>` source.
 
 `public/app.js` is a complete reference client for all of this in plain JavaScript.
+
+## Transcription jobs (`/api/jobs`, all require a session)
+
+| Method | Path | Body | Returns |
+|--------|------|------|---------|
+| POST | `/api/jobs` | `{ audioFileId }` | 201 `{ job: Job }`, status `running`; 404 if the recording is not yours |
+| GET | `/api/jobs` | | `{ jobs: Job[] }`, newest first, at most 50 |
+| GET | `/api/jobs/:id` | | `{ job: Job }`, including `sheets` once `status` is `succeeded` |
+| GET | `/api/sheets/:id/download-url` | | `{ url }`, presigned MusicXML download, valid 15 min |
+
+`Job`: `{ id, audioFileId, audioName, status: "queued" | "running" | "succeeded" | "failed", chunkCount, setId, error, createdAt, startedAt, finishedAt, sheets?: { id, name, instrument }[] }`
+
+Poll `GET /api/jobs/:id` every few seconds until `status` is `succeeded` or `failed`. `public/app.js` does exactly that.
+
+What happens behind it: the API inserts a job row and starts one AWS Step Functions execution (locally, it runs the same steps inside the server). Split plans 30-second windows, one Lambda per window transcribes it in parallel, Merge stitches the windows, Notate writes one MusicXML file per instrument, Finalize records the sheets. The transcription model is a placeholder until the model team replaces `server/pipeline/model.ts`; see the contract at the top of that file.

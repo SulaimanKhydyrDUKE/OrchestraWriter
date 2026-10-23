@@ -54,12 +54,29 @@ say "PUT bytes to storage"
 C=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 -X PUT -H 'content-type: audio/wav' --data-binary @"$TMP/in.wav" "$URL")
 [ "$C" = 200 ] && ok || fail "HTTP $C (CORS or endpoint problem)"
 say "register row"
-BODY=$(printf '{"name":"smoke","key":"%s","audioLengthSeconds":3}' "$KEY")
+BODY=$(printf '{"name":"smoke","key":"%s","audioLengthSeconds":75}' "$KEY")
 FID=$(req -X POST "$BASE/api/files" -d "$BODY" | json file.id); [ -n "$FID" ] && ok "row #$FID" || fail
 say "foreign key rejected"
 C=$(code -X POST "$BASE/api/files" -d '{"name":"x","key":"users/0/evil","audioLengthSeconds":1}'); [ "$C" = 403 ] && ok || fail "HTTP $C"
 say "list contains it"
 req "$BASE/api/files" | grep -q "\"id\":$FID," && ok || fail
+say "start transcription job"
+JOB=$(req -X POST "$BASE/api/jobs" -d "{\"audioFileId\":$FID}" | json job.id); [ -n "$JOB" ] && ok "job #$JOB" || fail
+say "job finishes (75 s audio, 3 chunks)"
+STATUS=""
+for _ in $(seq 1 90); do
+  J=$(req "$BASE/api/jobs/$JOB"); STATUS=$(echo "$J" | json job.status)
+  [ "$STATUS" = succeeded ] || [ "$STATUS" = failed ] && break
+  sleep 2
+done
+[ "$STATUS" = succeeded ] && ok "$(echo "$J" | json job.chunkCount) chunks" || fail "status=$STATUS $(echo "$J" | json job.error)"
+say "sheets produced"
+SID=$(echo "$J" | json job.sheets.0.id); NS=$(echo "$J" | json job.sheets.length)
+[ -n "$SID" ] && ok "$NS parts" || fail
+say "sheet is MusicXML"
+SURL=$(req "$BASE/api/sheets/$SID/download-url" | json url)
+curl -s --max-time 60 "$SURL" | grep -q "<score-partwise" && ok || fail
+
 say "download, bytes identical"
 DL=$(req "$BASE/api/files/$FID/download-url" | json url)
 curl -s --max-time 60 -o "$TMP/out.wav" "$DL"; cmp -s "$TMP/in.wav" "$TMP/out.wav" && ok || fail
